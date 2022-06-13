@@ -1,7 +1,7 @@
 extern crate core;
 
 use std::fs;
-use std::process::{Command, exit};
+use std::process::{Command, exit, Output};
 use crate::config::Config;
 
 mod config;
@@ -61,11 +61,46 @@ fn main() {
     }
 
     // Step 3: Extract .blk to .blkx
+    let mut handles = vec![];
+    for read_dir in fs::read_dir("cache/output").unwrap() {
+        for item in read_dir {
+            if let Ok(meta) = item.metadata() {
+                if meta.is_dir()  {
+                    if let Some(folder_name) = item.file_name().to_str() {
+                        let folder_name = folder_name.to_owned();
+                        let config = config.clone();
+                        let handle = std::thread::spawn(move ||{
+                            run_blk_extract(config, folder_name);
+                        });
+                        handles.push(handle);
+                    }
+                }
+            }
+        }
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
 }
 
 fn run_vromfs_extract(config: Config, file_name: String) {
     let command = format!("cd {} && python -m wt_tools.vromfs_unpacker {}/{} -O {}/output", &config.wt_tools_path, &config.target_path, file_name, &config.target_path);
-    let output = if cfg!(target_os = "windows") {
+    let output = exec_command(&command);
+    if !output.status.success() {
+        panic!("{}", String::from_utf8(output.stderr).expect("Cannot build string from failed python run"));
+    }
+}
+
+fn run_blk_extract(config: Config, extract_folder: String) {
+    let command = format!("cd {} && python -m wt_tools.blk_unpack_ng --format=json {}/output/{extract_folder}", &config.wt_tools_path, &config.target_path);
+    let output = exec_command(&command);
+    if !output.status.success() {
+        panic!("{}", String::from_utf8(output.stderr).expect("Cannot build string from failed python run"));
+    }
+}
+
+fn exec_command(command: &str) -> Output {
+   if cfg!(target_os = "windows") {
         Command::new("cmd")
             .args(["/C", &command])
             .output()
@@ -76,8 +111,5 @@ fn run_vromfs_extract(config: Config, file_name: String) {
             .arg(command)
             .output()
             .expect("failed to execute process")
-    };
-    if !output.status.success() {
-        panic!("{}", String::from_utf8(output.stderr).expect("Cannot build string from failed python run"));
     }
 }
