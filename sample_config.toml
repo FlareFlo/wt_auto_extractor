@@ -1,0 +1,9 @@
+# We use a literal string as windows paths contain \ escape characters
+
+# Keep in mind that the version of the cache can and will change and needs adjustment here
+# Example:
+#wt_base_path = 'E:\steam library\steamapps\common\War Thunder\cache\binary.2.15.1'
+wt_base_path = ''
+
+# Any empty folder
+target_path = ''
