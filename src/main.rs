@@ -1,6 +1,7 @@
 extern crate core;
 
 use std::fs;
+use std::fs::{ReadDir};
 use std::process::{Command, exit, Output};
 use crate::config::Config;
 
@@ -80,6 +81,25 @@ fn main() {
     }
     for handle in handles {
         handle.join().unwrap();
+    }
+
+    // Step 4: Delete excess files from output path
+    delete_excess(fs::read_dir("cache/output").unwrap());
+}
+
+fn delete_excess(folder: ReadDir) {
+    for file in folder {
+        if let Ok(entry) = file {
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_file()  {
+                    if entry.file_name().to_str().unwrap().split('.').last().unwrap() == "blk" {
+                        fs::remove_file(entry.path()).unwrap();
+                    }
+                } else {
+                    delete_excess(fs::read_dir(entry.path()).unwrap());
+                }
+            }
+        }
     }
 }
 
