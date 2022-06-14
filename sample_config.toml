@@ -7,3 +7,6 @@ wt_base_path = ''
 
 # Any empty folder
 target_path = ''
+
+# Location where wt-tools have been installed to
+wt_tools_path = ''
