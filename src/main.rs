@@ -15,6 +15,7 @@ const SPLIT_CHAR: char = '\\';
 const SPLIT_CHAR: char = '/';
 
 fn main() {
+    print_status("Loading config");
     let config_bytes = if let Ok(config) = fs::read("./config.toml") {
         config
     } else {
@@ -24,7 +25,9 @@ fn main() {
         exit(1);
     };
     let config: Config = toml::from_slice(&config_bytes).expect("Cannot serialize toml");
+    print_status("Loaded config");
 
+    print_status("Copying cache");
     // Step 1: Copy over the WT cache into local cache
     for dir_entry in fs::read_dir(&config.wt_base_path).unwrap() {
         if let Ok(entry) = dir_entry {
@@ -33,13 +36,16 @@ fn main() {
                    let file = fs::read(entry.path()).unwrap();
                     let path = format!("{}/{}", &config.target_path, entry.path().to_str().unwrap().split(SPLIT_CHAR).last().unwrap());
                     fs::write(&path,file).unwrap();
+                    print_status(&format!("Copied{}", path));
                 }
             }
         }
     }
+    print_status("Finished cache copy");
 
 
     // Step 2: Extract binaries into BLK format
+    print_status("Start extracting vromfs");
     let mut handles = vec![];
     for read_dir in fs::read_dir(&config.target_path).unwrap() {
         for item in read_dir {
@@ -48,20 +54,27 @@ fn main() {
                     if let Some(file_name) = item.file_name().to_str() {
                         let file_name = file_name.to_owned();
                         let config = config.clone();
+                        print_status(&format!("Start extracting {}", &file_name));
+
+                        let cloned = file_name.clone();
                         let handle = std::thread::spawn(move ||{
-                            run_vromfs_extract(config, file_name);
+                            run_vromfs_extract(config, cloned);
                         });
-                        handles.push(handle);
+                        handles.push((handle, file_name));
                     }
                 }
             }
         }
     }
     for handle in handles {
-        handle.join().unwrap();
+        handle.0.join().unwrap();
+        print_status(&format!("Extracted {}", handle.1))
     }
+    print_status("Finished extracting vromfs");
+
 
     // Step 3: Extract .blk to .blkx
+    print_status("Start extracting blk to blkx");
     let mut handles = vec![];
     for read_dir in fs::read_dir("cache/output").unwrap() {
         for item in read_dir {
@@ -70,37 +83,52 @@ fn main() {
                     if let Some(folder_name) = item.file_name().to_str() {
                         let folder_name = folder_name.to_owned();
                         let config = config.clone();
+
+                        let cloned = folder_name.clone();
                         let handle = std::thread::spawn(move ||{
-                            run_blk_extract(config, folder_name);
+                            run_blk_extract(config, cloned);
                         });
-                        handles.push(handle);
+                        print_status(&format!("Start extracting {}", &folder_name));
+                        handles.push((handle, folder_name));
                     }
                 }
             }
         }
     }
     for handle in handles {
-        handle.join().unwrap();
+        handle.0.join().unwrap();
+        print_status(&format!("Finished extracting {}", handle.1));
     }
 
     // Step 4: Delete excess files from output path
-    delete_excess(fs::read_dir("cache/output").unwrap());
+    print_status("Start removing excess build output");
+    let delete_count = delete_excess(fs::read_dir("cache/output").unwrap());
+    print_status(&format!("Deleted {delete_count} excess files"));
 }
 
-fn delete_excess(folder: ReadDir) {
+// Using this as we might get logging frameworks later
+fn print_status(text: &str) {
+    println!("{}", text);
+}
+
+fn delete_excess(folder: ReadDir) -> u64 {
+    let mut delete_count: u64 = 0;
     for file in folder {
         if let Ok(entry) = file {
             if let Ok(metadata) = entry.metadata() {
                 if metadata.is_file()  {
-                    if entry.file_name().to_str().unwrap().split('.').last().unwrap() == "blk" {
+                    let file_name = entry.file_name().to_str().unwrap();
+                    if file_name.split('.').last().unwrap() == "blk" || file_name == "nm" {
                         fs::remove_file(entry.path()).unwrap();
+                        delete_count += 1;
                     }
                 } else {
-                    delete_excess(fs::read_dir(entry.path()).unwrap());
+                    delete_count += delete_excess(fs::read_dir(entry.path()).unwrap());
                 }
             }
         }
     }
+    delete_count
 }
 
 fn run_vromfs_extract(config: Config, file_name: String) {
