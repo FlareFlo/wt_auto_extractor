@@ -3,6 +3,7 @@ extern crate core;
 use std::fs;
 use std::fs::{ReadDir};
 use std::process::{Command, exit, Output};
+use std::time::{Duration, Instant};
 use crate::config::Config;
 
 mod config;
@@ -15,7 +16,9 @@ const SPLIT_CHAR: char = '\\';
 const SPLIT_CHAR: char = '/';
 
 fn main() {
-    print_status("Loading config");
+    let start = Instant::now();
+
+    print_status("Loading config", start.elapsed());
     let config_bytes = if let Ok(config) = fs::read("./config.toml") {
         config
     } else {
@@ -25,9 +28,9 @@ fn main() {
         exit(1);
     };
     let config: Config = toml::from_slice(&config_bytes).expect("Cannot serialize toml");
-    print_status("Loaded config");
+    print_status("Loaded config", start.elapsed());
 
-    print_status("Copying cache");
+    print_status("Copying cache", start.elapsed());
     // Step 1: Copy over the WT cache into local cache
     for dir_entry in fs::read_dir(&config.wt_base_path).unwrap() {
         if let Ok(entry) = dir_entry {
@@ -36,16 +39,16 @@ fn main() {
                    let file = fs::read(entry.path()).unwrap();
                     let path = format!("{}/{}", &config.target_path, entry.path().to_str().unwrap().split(SPLIT_CHAR).last().unwrap());
                     fs::write(&path,file).unwrap();
-                    print_status(&format!("Copied{}", path));
+                    print_status(&format!("Copied{}", path), start.elapsed());
                 }
             }
         }
     }
-    print_status("Finished cache copy");
+    print_status("Finished cache copy", start.elapsed());
 
 
     // Step 2: Extract binaries into BLK format
-    print_status("Start extracting vromfs");
+    print_status("Start extracting vromfs", start.elapsed());
     let mut handles = vec![];
     for read_dir in fs::read_dir(&config.target_path).unwrap() {
         for item in read_dir {
@@ -54,7 +57,7 @@ fn main() {
                     if let Some(file_name) = item.file_name().to_str() {
                         let file_name = file_name.to_owned();
                         let config = config.clone();
-                        print_status(&format!("Start extracting {}", &file_name));
+                        print_status(&format!("Start extracting {}", &file_name), start.elapsed());
 
                         let cloned = file_name.clone();
                         let handle = std::thread::spawn(move ||{
@@ -68,13 +71,13 @@ fn main() {
     }
     for handle in handles {
         handle.0.join().unwrap();
-        print_status(&format!("Extracted {}", handle.1))
+        print_status(&format!("Extracted {}", handle.1), start.elapsed())
     }
-    print_status("Finished extracting vromfs");
+    print_status("Finished extracting vromfs", start.elapsed());
 
 
     // Step 3: Extract .blk to .blkx
-    print_status("Start extracting blk to blkx");
+    print_status("Start extracting blk to blkx", start.elapsed());
     let mut handles = vec![];
     for read_dir in fs::read_dir("cache/output").unwrap() {
         for item in read_dir {
@@ -88,7 +91,7 @@ fn main() {
                         let handle = std::thread::spawn(move ||{
                             run_blk_extract(config, cloned);
                         });
-                        print_status(&format!("Start extracting {}", &folder_name));
+                        print_status(&format!("Start extracting {}", &folder_name), start.elapsed());
                         handles.push((handle, folder_name));
                     }
                 }
@@ -97,18 +100,18 @@ fn main() {
     }
     for handle in handles {
         handle.0.join().unwrap();
-        print_status(&format!("Finished extracting {}", handle.1));
+        print_status(&format!("Finished extracting {}", handle.1), start.elapsed());
     }
 
     // Step 4: Delete excess files from output path
-    print_status("Start removing excess build output");
+    print_status("Start removing excess build output", start.elapsed());
     let delete_count = delete_excess(fs::read_dir("cache/output").unwrap());
-    print_status(&format!("Deleted {delete_count} excess files"));
+    print_status(&format!("Deleted {delete_count} excess files"), start.elapsed());
 }
 
 // Using this as we might get logging frameworks later
-fn print_status(text: &str) {
-    println!("{}", text);
+fn print_status(text: &str, time: Duration) {
+    println!("{time:?}: {}", text);
 }
 
 fn delete_excess(folder: ReadDir) -> u64 {
@@ -117,7 +120,7 @@ fn delete_excess(folder: ReadDir) -> u64 {
         if let Ok(entry) = file {
             if let Ok(metadata) = entry.metadata() {
                 if metadata.is_file()  {
-                    let file_name = entry.file_name().to_str().unwrap();
+                    let file_name = entry.file_name().to_str().unwrap().to_owned();
                     if file_name.split('.').last().unwrap() == "blk" || file_name == "nm" {
                         fs::remove_file(entry.path()).unwrap();
                         delete_count += 1;
