@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use crate::config::Config;
 
 mod config;
+mod paths;
 
 const SAMPLE_CONFIG: &[u8] = include_bytes!("../sample_config.toml");
 
