@@ -7,3 +7,4 @@
    DepotDownloader.exe -app 236390 -depot 236391 -manifest 6590543165547691358 -filelist "list.txt" -username $USR -password $PASSWD
    ```
 4. Build proper docker env to package process chain better
+5. use https://crates.io/crates/steamguard
