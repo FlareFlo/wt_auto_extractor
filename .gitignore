@@ -2,3 +2,4 @@
 config.toml
 cache/*
 .idea
+docker/gitauth
