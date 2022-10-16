@@ -1,0 +1,8 @@
+aces.vromfs.bin
+char.vromfs.bin
+game.vromfs.bin
+gui.vromfs.bin
+lang.vromfs.bin
+mis.vromfs.bin
+webUi.vromfs.bin
+wwdata.vromfs.bin
