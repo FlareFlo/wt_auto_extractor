@@ -15,7 +15,7 @@ RUN pacman --noconfirm -Scc
 
 # Download DepotDownloader
 WORKDIR /DepotDownloader
-RUN wget "github.com/SteamRE/DepotDownloader/releases/download/DepotDownloader_2.4.7/depotdownloader-2.4.7.zip"
+ADD "https://github.com/SteamRE/DepotDownloader/releases/download/DepotDownloader_2.4.7/depotdownloader-2.4.7.zip" .
 RUN bsdtar xvf "depotdownloader-2.4.7.zip"
 WORKDIR ..
 
