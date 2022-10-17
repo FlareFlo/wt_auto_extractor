@@ -21,6 +21,9 @@ WORKDIR ..
 
 # Copy configuration files
 COPY ./list.txt .
+COPY ./gitauth .
+COPY ./steam_usr .
+COPY ./steam_pwd .
 
 # Run the actual process
 COPY ./run.sh .
